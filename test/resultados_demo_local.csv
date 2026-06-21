@@ -1,0 +1,16 @@
+latido,clase_real,nombre_real,clase_predicha,nombre_predicho,confianza,acierto
+1,0,Normal,0,Normal,0.9983,True
+2,0,Normal,0,Normal,0.7464,True
+3,0,Normal,0,Normal,0.9876,True
+4,1,Supraventricular,1,Supraventricular,0.9994,True
+5,1,Supraventricular,0,Normal,0.8424,False
+6,1,Supraventricular,1,Supraventricular,1.0,True
+7,2,Ventricular,2,Ventricular,0.9903,True
+8,2,Ventricular,2,Ventricular,1.0,True
+9,2,Ventricular,2,Ventricular,1.0,True
+10,3,Fusion,3,Fusion,1.0,True
+11,3,Fusion,3,Fusion,0.7792,True
+12,3,Fusion,3,Fusion,0.9921,True
+13,4,Unknown,4,Unknown,1.0,True
+14,4,Unknown,3,Fusion,0.9637,False
+15,4,Unknown,4,Unknown,1.0,True
