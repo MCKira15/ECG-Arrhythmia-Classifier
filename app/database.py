@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 
-DATABASE_URL = config("DATABASE_URL", default="mysql+pymysql://ecg_user:ecg_password@127.0.0.1:3306/ecg_arrhythmia")
+DATABASE_URL = config("DATABASE_URL", default="mysql+pymysql://ecg_user:ecg_password@127.0.0.1:3307/ecg_arrhythmia")
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
