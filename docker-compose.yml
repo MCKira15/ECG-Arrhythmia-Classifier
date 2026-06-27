@@ -1,11 +1,48 @@
 services:
+  mysql:
+    image: mysql:8.4
+    container_name: ecg-arrhythmia-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ecg_arrhythmia}
+      MYSQL_USER: ${MYSQL_USER:-ecg_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-ecg_password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   api:
     build: .
     container_name: ecg-arrhythmia-api
     env_file:
       - .env
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-ecg_user}:${MYSQL_PASSWORD:-ecg_password}@mysql:3306/${MYSQL_DATABASE:-ecg_arrhythmia}
+    depends_on:
+      mysql:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
       - .:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  adminer:
+    image: adminer:5
+    container_name: ecg-arrhythmia-adminer
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+volumes:
+  mysql_data:

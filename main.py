@@ -37,4 +37,14 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/database/info")
+def database_info():
+    return {
+        "database_url": engine.url.render_as_string(hide_password=True),
+        "dialect": engine.url.get_dialect().name,
+        "main_table": "ecg_predictions",
+        "stores_signal_values": "signal JSON con 187 valores por muestra",
+    }
+
+
 app.include_router(predictions.router)

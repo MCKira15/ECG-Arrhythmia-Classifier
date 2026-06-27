@@ -7,10 +7,24 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.ml import POINT_COLUMNS, class_name, dataframe_from_upload, predict_signals
 from app.models import EcgPrediction
-from app.schemas import BatchPredictionResponse, ManualPredictionRequest, PredictionResponse
+from app.schemas import (
+    BatchPredictionResponse,
+    DeleteResponse,
+    ManualPredictionRequest,
+    PredictionResponse,
+    PredictionStatsResponse,
+    PredictionUpdateRequest,
+)
 
 
 router = APIRouter(prefix="/predictions", tags=["Predictions"])
+
+
+def get_prediction_or_404(db: Session, prediction_id: int) -> EcgPrediction:
+    prediction = db.query(EcgPrediction).filter(EcgPrediction.id == prediction_id).first()
+    if prediction is None:
+        raise HTTPException(status_code=404, detail="Predicción no encontrada.")
+    return prediction
 
 
 def save_prediction(
@@ -110,9 +124,101 @@ def list_predictions(skip: int = 0, limit: int = 100, db: Session = Depends(get_
     )
 
 
+@router.get("/stats/", response_model=PredictionStatsResponse)
+def get_prediction_stats(db: Session = Depends(get_db)):
+    total_predictions = db.query(EcgPrediction).count()
+    demo_seed_rows = db.query(EcgPrediction).filter(EcgPrediction.source == "demo_seed").count()
+    manual_rows = db.query(EcgPrediction).filter(EcgPrediction.source == "manual").count()
+    file_upload_rows = db.query(EcgPrediction).filter(EcgPrediction.source == "file_upload").count()
+
+    return PredictionStatsResponse(
+        total_predictions=total_predictions,
+        demo_seed_rows=demo_seed_rows,
+        manual_rows=manual_rows,
+        file_upload_rows=file_upload_rows,
+        other_rows=total_predictions - demo_seed_rows - manual_rows - file_upload_rows,
+    )
+
+
 @router.get("/{prediction_id}", response_model=PredictionResponse)
 def get_prediction(prediction_id: int, db: Session = Depends(get_db)):
     prediction = db.query(EcgPrediction).filter(EcgPrediction.id == prediction_id).first()
     if prediction is None:
         raise HTTPException(status_code=404, detail="Predicción no encontrada.")
     return prediction
+@router.put("/{prediction_id}", response_model=PredictionResponse)
+def replace_prediction(
+    prediction_id: int,
+    payload: ManualPredictionRequest,
+    db: Session = Depends(get_db),
+):
+    prediction = get_prediction_or_404(db, prediction_id)
+    predicted_classes, confidences = predict_signals([payload.signal])
+    predicted_class = int(predicted_classes[0])
+
+    prediction.signal = [float(value) for value in payload.signal]
+    prediction.true_class = payload.true_class
+    prediction.true_class_name = class_name(payload.true_class)
+    prediction.predicted_class = predicted_class
+    prediction.predicted_class_name = class_name(predicted_class)
+    prediction.confidence = round(float(confidences[0]), 4)
+    prediction.is_correct = (
+        payload.true_class == predicted_class if payload.true_class is not None else None
+    )
+    prediction.source = "manual_edit"
+    prediction.filename = None
+    prediction.row_number = None
+
+    db.commit()
+    db.refresh(prediction)
+    return prediction
+
+
+@router.patch("/{prediction_id}", response_model=PredictionResponse)
+def update_prediction(
+    prediction_id: int,
+    payload: PredictionUpdateRequest,
+    db: Session = Depends(get_db),
+):
+    prediction = get_prediction_or_404(db, prediction_id)
+    update_data = payload.model_dump(exclude_unset=True)
+
+    if "signal" in update_data:
+        signal = [float(value) for value in update_data["signal"]]
+        predicted_classes, confidences = predict_signals([signal])
+        predicted_class = int(predicted_classes[0])
+        prediction.signal = signal
+        prediction.predicted_class = predicted_class
+        prediction.predicted_class_name = class_name(predicted_class)
+        prediction.confidence = round(float(confidences[0]), 4)
+
+    if "true_class" in update_data:
+        prediction.true_class = update_data["true_class"]
+        prediction.true_class_name = class_name(update_data["true_class"])
+
+    if "source" in update_data and update_data["source"]:
+        prediction.source = update_data["source"]
+
+    if "filename" in update_data:
+        prediction.filename = update_data["filename"]
+
+    if "row_number" in update_data:
+        prediction.row_number = update_data["row_number"]
+
+    prediction.is_correct = (
+        prediction.true_class == prediction.predicted_class
+        if prediction.true_class is not None
+        else None
+    )
+
+    db.commit()
+    db.refresh(prediction)
+    return prediction
+
+
+@router.delete("/{prediction_id}", response_model=DeleteResponse)
+def delete_prediction(prediction_id: int, db: Session = Depends(get_db)):
+    prediction = get_prediction_or_404(db, prediction_id)
+    db.delete(prediction)
+    db.commit()
+    return DeleteResponse(message="Predicción eliminada correctamente.", deleted_id=prediction_id)

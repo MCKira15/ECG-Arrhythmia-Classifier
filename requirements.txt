@@ -8,6 +8,7 @@ scikit-learn
 sqlalchemy
 python-decouple
 #mysqlclient
+pymysql
 psycopg2-binary
 keras == 3.13.2
 pandas
